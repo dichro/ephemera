@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/gob"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"time"
@@ -93,21 +94,9 @@ func main() {
 		}
 	}
 
-	client := conf.Client(oauth2.NoContext, u.Token)
-	session := facebook.Session{
-		Version:    "v2.12",
-		HttpClient: client,
-	}
-
-	res, err := session.Get("/me/feed", map[string]interface{}{
-		"until": 1493485263,
-	})
-	if err != nil {
+	facebook.SetHttpClient(conf.Client(oauth2.NoContext, u.Token))
+	if err := fetchFeed(); err != nil {
 		glog.Error(err)
-	} else {
-		if err := parseFeedResult(res); err != nil {
-			glog.Error(err)
-		}
 	}
 
 	if u.dirty {
@@ -128,14 +117,48 @@ type Feed struct {
 	Posts []interface{} `json:"data"`
 }
 
-func parseFeedResult(result facebook.Result) error {
+func fetchFeed() error {
+	result, err := facebook.Get("/me/feed", map[string]interface{}{
+		//"until":  1241201810,
+		"fields": "message,created_time,id,comments.limit(0).summary(true),reactions.limit(0).summary(true)",
+	})
+	if err != nil {
+		return err
+	}
+
 	var feed Feed
 	if err := result.Decode(&feed); err != nil {
 		return err
 	}
 	glog.Infof("retrieved %d posts", len(feed.Posts))
-	for _, post := range feed.Posts {
-		fmt.Println("post", post)
+	for _, p := range feed.Posts {
+		post, ok := p.(map[string]interface{})
+		if !ok {
+			glog.Errorf("can't parse %#v as post", p)
+			continue
+		}
+		fmt.Println(post["created_time"], post["message"])
+		skip := false
+		if likes, ok := post["reactions"].(map[string]interface{}); ok {
+			count := likes["summary"].(map[string]interface{})["total_count"]
+			fmt.Println(count, "reactions")
+			if c, err := count.(json.Number).Int64(); err == nil && c > 0 {
+				skip = true
+			}
+		}
+		if comments, ok := post["comments"].(map[string]interface{}); ok {
+			count := comments["summary"].(map[string]interface{})["total_count"]
+			fmt.Println(count, "comments")
+			if c, err := count.(json.Number).Int64(); err == nil && c > 30 {
+				skip = true
+			}
+		}
+		if skip {
+			fmt.Println("keeping")
+		} else {
+			fmt.Println("deleting")
+		}
+		fmt.Println()
 	}
 	return nil
 }
