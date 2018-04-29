@@ -119,7 +119,7 @@ type Feed struct {
 
 func fetchFeed() error {
 	result, err := facebook.Get("/me/feed", map[string]interface{}{
-		//"until":  1241201810,
+		"until":  1241201810,
 		"fields": "message,created_time,id,comments.limit(0).summary(true),reactions.limit(0).summary(true)",
 	})
 	if err != nil {
@@ -138,25 +138,37 @@ func fetchFeed() error {
 			continue
 		}
 		fmt.Println(post["created_time"], post["message"])
-		skip := false
+		keep := false
 		if likes, ok := post["reactions"].(map[string]interface{}); ok {
 			count := likes["summary"].(map[string]interface{})["total_count"]
 			fmt.Println(count, "reactions")
-			if c, err := count.(json.Number).Int64(); err == nil && c > 0 {
-				skip = true
+			if c, err := count.(json.Number).Int64(); err == nil && c > 10 {
+				keep = true
 			}
 		}
 		if comments, ok := post["comments"].(map[string]interface{}); ok {
 			count := comments["summary"].(map[string]interface{})["total_count"]
 			fmt.Println(count, "comments")
-			if c, err := count.(json.Number).Int64(); err == nil && c > 30 {
-				skip = true
+			if c, err := count.(json.Number).Int64(); err == nil && c > 0 {
+				keep = true
 			}
 		}
-		if skip {
+		if keep {
 			fmt.Println("keeping")
+			fmt.Println()
+			continue
+		}
+		id := post["id"].(string)
+		fmt.Printf("deleting %s: ", id)
+		if !*dryRun {
+			res, err := facebook.Delete(fmt.Sprintf("/%s", id), nil)
+			if err != nil {
+				fmt.Printf("%#v/%#v\n", res, err)
+			} else {
+				fmt.Printf("%#v\n", res)
+			}
 		} else {
-			fmt.Println("deleting")
+			fmt.Println("(dry run)")
 		}
 		fmt.Println()
 	}
