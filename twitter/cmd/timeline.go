@@ -3,8 +3,8 @@ package cmd
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/ChimeraCoder/anaconda"
@@ -38,7 +38,7 @@ func init() {
 	tl.AddCommand(dumpTL)
 }
 
-var timelineKey = TimelineKey{JSONKey{pinaf.New("ephemera", "timeline", "fetch")}}
+var timelineKey = TimelineKey{pinaf.JSONKey{pinaf.New("ephemera", "timeline", "fetch")}}
 
 func TimelineFetch(cmd *cobra.Command, args []string) {
 	db, err := leveldb.OpenFile(viper.GetString("store"), nil)
@@ -57,19 +57,62 @@ func TimelineFetch(cmd *cobra.Command, args []string) {
 	anaconda.SetConsumerKey(viper.GetString(id))
 	anaconda.SetConsumerSecret(viper.GetString(secret))
 	api := anaconda.NewTwitterApi(viper.GetString(accessToken), viper.GetString(accessSecret))
-	tl, err := api.GetUserTimeline(nil)
-	if err != nil {
-		glog.Exit(err)
-	}
+
+	i := timelineKey.Scan(db)
+	defer i.Release()
 	b := new(leveldb.Batch)
-	for _, status := range tl {
-		if err := timelineKey.Put(b, status); err != nil {
+	if !i.First() {
+		if n, err := fetch(api, b, nil); err != nil {
 			glog.Exit(err)
+		} else {
+			fmt.Println("retrieved", n, "tweets")
+		}
+	} else {
+		entry, err := i.Key()
+		if err != nil {
+			glog.Exit(err)
+		}
+		glog.Infof("earliest stored ID %d from %s", entry.ID, entry.Time())
+		v := make(url.Values)
+		v.Set("max_id", fmt.Sprint(entry.ID-1))
+		v.Set("count", "200")
+		if n, err := fetch(api, b, v); err != nil {
+			glog.Exit(err)
+		} else {
+			fmt.Println("retrieved", n, "older tweets")
+		}
+
+		i.Last()
+		entry, err = i.Key()
+		if err != nil {
+			glog.Exit(err)
+		}
+		glog.Infof("latest stored ID %d from %s", entry.ID, entry.Time())
+		v = make(url.Values)
+		v.Set("since_id", fmt.Sprint(entry.ID))
+		v.Set("count", "200")
+		if n, err := fetch(api, b, v); err != nil {
+			glog.Exit(err)
+		} else {
+			fmt.Println("retrieved", n, "newer tweets")
 		}
 	}
 	if err := db.Write(b, nil); err != nil {
 		glog.Exit(err)
 	}
+}
+
+func fetch(api *anaconda.TwitterApi, b *leveldb.Batch, v url.Values) (int, error) {
+	tl, err := api.GetUserTimeline(v)
+	if err != nil {
+		return 0, err
+	}
+	for i, status := range tl {
+		if err := timelineKey.Put(b, status); err != nil {
+			return i, err
+		}
+	}
+	return len(tl), nil
 }
 
 func TimelineDump(cmd *cobra.Command, args []string) {
@@ -80,9 +123,7 @@ func TimelineDump(cmd *cobra.Command, args []string) {
 	defer db.Close()
 
 	i := timelineKey.Scan(db)
-	if !i.First() {
-		glog.Exit(`no timeline data retrieved; try "twitter timeline fetch" first`)
-	}
+	defer i.Release()
 	for i.Next() {
 		e, err := i.Key()
 		if err != nil {
@@ -90,31 +131,13 @@ func TimelineDump(cmd *cobra.Command, args []string) {
 		}
 		fmt.Println(e.Time(), e.ID)
 	}
-}
-
-type JSONKey struct {
-	pinaf.Key
-}
-
-func (k JSONKey) Put(b *leveldb.Batch, subKey []byte, value interface{}) error {
-	var buf bytes.Buffer
-	err := json.NewEncoder(&buf).Encode(value)
-	if err == nil {
-		b.Put(k.Entry(subKey), buf.Bytes())
+	if !i.Prev() {
+		glog.Exit(`no timeline data retrieved; try "twitter timeline fetch" first`)
 	}
-	return err
-}
-
-func (k JSONKey) Get(db *leveldb.DB, subKey []byte, value interface{}) error {
-	buf, err := db.Get(k.Entry(subKey), nil)
-	if err == nil {
-		err = json.NewDecoder(bytes.NewReader(buf)).Decode(value)
-	}
-	return err
 }
 
 type TimelineKey struct {
-	key JSONKey
+	key pinaf.JSONKey
 }
 
 type TimelineEntry struct {

@@ -1,3 +1,4 @@
+// Package pinaf is not a framework.
 package pinaf
 
 import (
@@ -70,4 +71,3 @@ func (i Iterator) Seek(key []byte) bool {
 	buf.Write(key)
 	return i.Iterator.Seek(buf.Bytes())
 }
-
