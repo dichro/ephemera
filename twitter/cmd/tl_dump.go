@@ -60,11 +60,13 @@ func timelineDumpAll(db *leveldb.DB) {
 	i := timelineKey.Scan(db)
 	defer i.Release()
 	for i.Next() {
-		id, err := i.Key()
+		t, err := i.Value()
 		if err != nil {
 			glog.Error(err)
 		}
-		fmt.Println(id)
+		if err := tweetTmpl.Execute(os.Stdout, t); err != nil {
+			glog.Error(err)
+		}
 	}
 	if !i.Prev() {
 		glog.Exit(`no timeline data retrieved; try "twitter timeline fetch" first`)

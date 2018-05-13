@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 
 	"github.com/ChimeraCoder/anaconda"
 	"github.com/dichro/ephemera/pinaf"
@@ -51,5 +52,10 @@ type TimelineIterator struct {
 
 func (i TimelineIterator) Key() (tweetID int64, err error) {
 	err = binary.Read(bytes.NewReader(i.Iterator.Key()), binary.BigEndian, &tweetID)
+	return
+}
+
+func (i TimelineIterator) Value() (tweet anaconda.Tweet, err error) {
+	err = json.Unmarshal(i.Iterator.Value(), &tweet)
 	return
 }
