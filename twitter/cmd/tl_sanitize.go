@@ -31,7 +31,7 @@ func TimelineSanitize(cmd *cobra.Command, args []string) {
 
 	result := defaultPolicy.Apply(db)
 	for r, n := range result.Kept {
-		fmt.Println("kept", n, "because", r)
+		fmt.Println("kept", len(n), "because", r)
 	}
 
 	fmt.Println("dropping", len(result.Dropped), "in total")
