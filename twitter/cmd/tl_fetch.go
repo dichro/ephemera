@@ -34,6 +34,20 @@ func twitterAPI() *anaconda.TwitterApi {
 	return anaconda.NewTwitterApi(viper.GetString(accessToken), viper.GetString(accessSecret))
 }
 
+func idRange(db *leveldb.DB) (low, high int64, err error) {
+	i := timelineKey.Scan(db)
+	defer i.Release()
+	if !i.First() {
+		return
+	}
+	if low, err = i.Key(); err == nil {
+		i.Last()
+		high, err = i.Key()
+	}
+	glog.Infof("idRange yielded %d, %d error %v", low, high, err)
+	return
+}
+
 func TimelineFetch(cmd *cobra.Command, args []string) {
 	db, err := leveldb.OpenFile(viper.GetString("store"), nil)
 	if err != nil {
@@ -43,47 +57,61 @@ func TimelineFetch(cmd *cobra.Command, args []string) {
 
 	api := twitterAPI()
 
-	i := timelineKey.Scan(db)
-	defer i.Release()
-	b := new(leveldb.Batch)
-	if !i.First() {
-		if n, err := fetch(api, b, nil); err != nil {
-			glog.Exit(err)
-		} else {
-			fmt.Println("retrieved", n, "tweets")
-		}
-	} else {
-		id, err := i.Key()
+	low, high, err := idRange(db)
+	retrieved := 0
+	for high != 0 {
 		if err != nil {
 			glog.Exit(err)
 		}
-		glog.Infof("earliest stored ID %d", id)
 		v := make(url.Values)
-		v.Set("max_id", fmt.Sprint(id-1))
+		v.Set("since_id", fmt.Sprint(high))
 		v.Set("count", "200")
-		if n, err := fetch(api, b, v); err != nil {
-			glog.Exit(err)
-		} else {
-			fmt.Println("retrieved", n, "older tweets")
-		}
-
-		i.Last()
-		id, err = i.Key()
+		b := new(leveldb.Batch)
+		n, err := fetch(api, b, v)
+		glog.Infof("fetching ids above %d: %d error %v", high, n, err)
 		if err != nil {
 			glog.Exit(err)
 		}
-		glog.Infof("latest stored ID %d", id)
-		v = make(url.Values)
-		v.Set("since_id", fmt.Sprint(id))
-		v.Set("count", "200")
-		if n, err := fetch(api, b, v); err != nil {
-			glog.Exit(err)
-		} else {
-			fmt.Println("retrieved", n, "newer tweets")
+		if n == 0 {
+			break
 		}
+		if err := db.Write(b, nil); err != nil {
+			glog.Exit(err)
+		}
+		retrieved += n
+		low, high, err = idRange(db)
 	}
-	if err := db.Write(b, nil); err != nil {
-		glog.Exit(err)
+	if retrieved > 0 {
+		fmt.Println("retrieved", retrieved, "recent tweets")
+		retrieved = 0
+	}
+
+	for {
+		if err != nil {
+			glog.Exit(err)
+		}
+		v := make(url.Values)
+		if low != 0 {
+			v.Set("max_id", fmt.Sprint(low-1))
+		}
+		v.Set("count", "200")
+		b := new(leveldb.Batch)
+		n, err := fetch(api, b, v)
+		glog.Infof("fetching ids below %d: %d error %v", low, n, err)
+		if err != nil {
+			glog.Exit(err)
+		}
+		if n == 0 {
+			break
+		}
+		if err := db.Write(b, nil); err != nil {
+			glog.Exit(err)
+		}
+		retrieved += n
+		low, high, err = idRange(db)
+	}
+	if retrieved > 0 {
+		fmt.Println("retrieved", retrieved, "older tweets")
 	}
 }
 

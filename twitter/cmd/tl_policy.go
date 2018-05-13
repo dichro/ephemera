@@ -109,6 +109,7 @@ func (p Policy) Apply(db *leveldb.DB) Result {
 			continue
 		}
 		if _, err := deletesKey.Get(db, tweet.Id); err == nil {
+			r.Kept["already deleted"]++
 			// TODO(dichro): make a .Has method
 			continue
 		}
