@@ -30,7 +30,7 @@ func init() {
 	policyTL.AddCommand(dropsTL)
 }
 
-var p = Policy{
+var defaultPolicy = Policy{
 	MaxAge:      52 * 7 * 24 * time.Hour,
 	MinRetweets: 1,
 	MinStars:    1,
@@ -42,8 +42,11 @@ func TimelinePolicyDrops(cmd *cobra.Command, args []string) {
 		glog.Exit(err)
 	}
 	defer db.Close()
-	result := p.Apply(db)
+	result := defaultPolicy.Apply(db)
 	for _, tweet := range result.Dropped {
+		if _, err := deletesKey.Get(db, tweet.Id); err == nil {
+			continue
+		}
 		tweetTmpl.Execute(os.Stdout, tweet)
 		fmt.Println()
 	}
@@ -55,7 +58,7 @@ func TimelinePolicy(cmd *cobra.Command, args []string) {
 		glog.Exit(err)
 	}
 	defer db.Close()
-	result := p.Apply(db)
+	result := defaultPolicy.Apply(db)
 	for r, n := range result.Kept {
 		fmt.Println("kept", n, "because", r)
 	}
@@ -103,6 +106,10 @@ func (p Policy) Apply(db *leveldb.DB) Result {
 		tweet, err := i.Value()
 		if err != nil {
 			r.Kept[fmt.Sprintf("zzy error %s", err.Error())]++
+			continue
+		}
+		if _, err := deletesKey.Get(db, tweet.Id); err == nil {
+			// TODO(dichro): make a .Has method
 			continue
 		}
 		if keep, reason := p.Keep(tweet); keep {

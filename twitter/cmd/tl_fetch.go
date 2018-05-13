@@ -21,13 +21,7 @@ func init() {
 	tl.AddCommand(fetchTL)
 }
 
-func TimelineFetch(cmd *cobra.Command, args []string) {
-	db, err := leveldb.OpenFile(viper.GetString("store"), nil)
-	if err != nil {
-		glog.Exit(err)
-	}
-	defer db.Close()
-
+func twitterAPI() *anaconda.TwitterApi {
 	const (
 		id           = "twitter_id"
 		secret       = "twitter_secret"
@@ -37,7 +31,17 @@ func TimelineFetch(cmd *cobra.Command, args []string) {
 
 	anaconda.SetConsumerKey(viper.GetString(id))
 	anaconda.SetConsumerSecret(viper.GetString(secret))
-	api := anaconda.NewTwitterApi(viper.GetString(accessToken), viper.GetString(accessSecret))
+	return anaconda.NewTwitterApi(viper.GetString(accessToken), viper.GetString(accessSecret))
+}
+
+func TimelineFetch(cmd *cobra.Command, args []string) {
+	db, err := leveldb.OpenFile(viper.GetString("store"), nil)
+	if err != nil {
+		glog.Exit(err)
+	}
+	defer db.Close()
+
+	api := twitterAPI()
 
 	i := timelineKey.Scan(db)
 	defer i.Release()
