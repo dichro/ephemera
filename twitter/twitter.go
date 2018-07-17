@@ -9,10 +9,11 @@ import (
 )
 
 func main() {
+	configPath := flag.String("config_path", "$HOME/.config", "where to find the config file")
 	flag.Parse()
 
 	viper.SetConfigName("ephemera")
-	viper.AddConfigPath("$HOME/.config")
+	viper.AddConfigPath(*configPath)
 	if err := viper.ReadInConfig(); err != nil {
 		glog.Exit(err)
 	}
