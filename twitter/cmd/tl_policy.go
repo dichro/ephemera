@@ -37,19 +37,18 @@ func init() {
 	policyTL.AddCommand(keepsTL)
 }
 
-var defaultPolicy = Policy{
-	MaxAge:      26 * 7 * 24 * time.Hour,
-	MinRetweets: 3,
-	MinStars:    3,
-}
-
 func TimelinePolicyKeeps(cmd *cobra.Command, args []string) {
 	db, err := leveldb.OpenFile(viper.GetString("store"), nil)
 	if err != nil {
 		glog.Exit(err)
 	}
 	defer db.Close()
-	result := defaultPolicy.Apply(db)
+	policy, err := LoadPolicyFromConfig()
+	if err != nil {
+		glog.Exit(err)
+	}
+
+	result := policy.Apply(db)
 	for reason, tweets := range result.Kept {
 		fmt.Println(reason)
 		for _, tweet := range tweets {
@@ -68,7 +67,12 @@ func TimelinePolicyDrops(cmd *cobra.Command, args []string) {
 		glog.Exit(err)
 	}
 	defer db.Close()
-	result := defaultPolicy.Apply(db)
+	policy, err := LoadPolicyFromConfig()
+	if err != nil {
+		glog.Exit(err)
+	}
+
+	result := policy.Apply(db)
 	for _, tweet := range result.Dropped {
 		if _, err := deletesKey.Get(db, tweet.Id); err == nil {
 			continue
@@ -84,7 +88,12 @@ func TimelinePolicy(cmd *cobra.Command, args []string) {
 		glog.Exit(err)
 	}
 	defer db.Close()
-	result := defaultPolicy.Apply(db)
+	policy, err := LoadPolicyFromConfig()
+	if err != nil {
+		glog.Exit(err)
+	}
+
+	result := policy.Apply(db)
 	for r, n := range result.Kept {
 		fmt.Println("kept", len(n), "because", r)
 	}
@@ -95,6 +104,14 @@ func TimelinePolicy(cmd *cobra.Command, args []string) {
 type Policy struct {
 	MaxAge                time.Duration
 	MinRetweets, MinStars int
+	KeepMedia             bool
+}
+
+func LoadPolicyFromConfig() (Policy, error) {
+	twitterPolicy := viper.Sub("twitter_policy")
+	var p Policy
+	err := twitterPolicy.Unmarshal(&p)
+	return p, err
 }
 
 func (p Policy) Keep(tweet anaconda.Tweet) (keep bool, reason string) {
@@ -108,7 +125,7 @@ func (p Policy) Keep(tweet anaconda.Tweet) (keep bool, reason string) {
 	if !tweet.Retweeted && (tweet.RetweetCount >= p.MinRetweets || tweet.FavoriteCount >= p.MinStars) {
 		return true, "too popular"
 	}
-	if !tweet.Retweeted && len(tweet.Entities.Media) > 0 {
+	if !tweet.Retweeted && len(tweet.Entities.Media) > 0 && p.KeepMedia {
 		return true, "has media"
 	}
 	/*

@@ -28,8 +28,11 @@ func TimelineSanitize(cmd *cobra.Command, args []string) {
 		glog.Exit(err)
 	}
 	defer db.Close()
-
-	result := defaultPolicy.Apply(db)
+	policy, err := LoadPolicyFromConfig()
+	if err != nil {
+		glog.Exit(err)
+	}
+	result := policy.Apply(db)
 	for r, n := range result.Kept {
 		fmt.Println("kept", len(n), "because", r)
 	}
