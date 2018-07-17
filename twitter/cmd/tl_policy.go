@@ -115,21 +115,21 @@ func LoadPolicyFromConfig() (Policy, error) {
 	return p, err
 }
 
-func (p Policy) Keep(tweet anaconda.Tweet) (keep bool, reason string) {
+func (p Policy) Keep(tweet anaconda.Tweet, now time.Time) (keep bool, reason string) {
 	if t, err := tweet.CreatedAtTime(); err != nil {
 		return true, "unparseable creation time"
 	} else {
-		if time.Now().Sub(t) < p.MaxAge {
+		if now.Sub(t) < p.MaxAge {
 			return true, "too recent"
 		}
 	}
-	if strings.HasPrefix(tweet.Text, "RT @") {
-		return false, "old style retweet"
+	if strings.HasPrefix(tweet.Text, "RT @") || tweet.Retweeted {
+		return false, "retweet"
 	}
-	if !tweet.Retweeted && (tweet.RetweetCount >= p.MinRetweets || tweet.FavoriteCount >= p.MinStars) {
+	if tweet.RetweetCount >= p.MinRetweets || tweet.FavoriteCount >= p.MinStars {
 		return true, "too popular"
 	}
-	if !tweet.Retweeted && len(tweet.Entities.Media) > 0 && p.KeepMedia {
+	if len(tweet.Entities.Media) > 0 && p.KeepMedia {
 		return true, "has media"
 	}
 	/*
@@ -163,7 +163,7 @@ func (p Policy) Apply(db *leveldb.DB) Result {
 			// TODO(dichro): make a .Has method
 			continue
 		}
-		if keep, reason := p.Keep(tweet); keep {
+		if keep, reason := p.Keep(tweet, time.Now()); keep {
 			r.Kept[reason] = append(r.Kept[reason], tweet)
 		} else {
 			r.Dropped = append(r.Dropped, tweet)
