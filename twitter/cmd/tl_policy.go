@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html/template"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/ChimeraCoder/anaconda"
@@ -121,6 +122,9 @@ func (p Policy) Keep(tweet anaconda.Tweet) (keep bool, reason string) {
 		if time.Now().Sub(t) < p.MaxAge {
 			return true, "too recent"
 		}
+	}
+	if strings.HasPrefix(tweet.Text, "RT @") {
+		return false, "old style retweet"
 	}
 	if !tweet.Retweeted && (tweet.RetweetCount >= p.MinRetweets || tweet.FavoriteCount >= p.MinStars) {
 		return true, "too popular"
