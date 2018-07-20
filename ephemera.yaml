@@ -3,3 +3,8 @@ twitter_id: "LAUSDSDflSdfgaldfglSDFl"
 twitter_secret: "theraininspainfallsmainlyinbase64=="
 twitter_access_token: "9203405470-SDUhahLSUFDGlISUGDFELSDF"
 twitter_access_secret: "ASIDFfhSDFypSFyh7st5fSDfySDfa97yq2u5q45y"
+twitter_policy:
+  maxage: 4768h
+  minretweets: 3
+  minstars: 3
+  keepmedia: true
