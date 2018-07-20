@@ -15,14 +15,25 @@ import (
 var dumpTL = &cobra.Command{
 	Use:   "dump",
 	Short: "dumps timeline retrieved from twitter",
-	Run:   TimelineDump,
+	Run: func(cmd *cobra.Command, args []string) {
+		TimelineDump(cmd, args, TweetType{})
+	},
+}
+
+var dumpFavs = &cobra.Command{
+	Use:   "dump",
+	Short: "dumps favorites retrieved from twitter",
+	Run: func(cmd *cobra.Command, args []string) {
+		TimelineDump(cmd, args, FavType{})
+	},
 }
 
 func init() {
 	tl.AddCommand(dumpTL)
+	fv.AddCommand(dumpFavs)
 }
 
-func TimelineDump(cmd *cobra.Command, args []string) {
+func TimelineDump(cmd *cobra.Command, args []string, twitterType TwitterType) {
 	db, err := leveldb.OpenFile(viper.GetString("store"), nil)
 	if err != nil {
 		glog.Exit(err)
@@ -36,14 +47,15 @@ func TimelineDump(cmd *cobra.Command, args []string) {
 				fmt.Println(err)
 				continue
 			}
-			timelineDumpOne(db, id)
+			timelineDumpOne(db, id, twitterType.Key())
 		}
 	} else {
-		timelineDumpAll(db)
+		timelineDumpAll(db, twitterType.Key())
 	}
 }
 
-func timelineDumpOne(db *leveldb.DB, id int64) {
+func timelineDumpOne(db *leveldb.DB, id int64,
+	timelineKey TimelineKey) {
 	tweet, err := timelineKey.Get(db, id)
 	if err != nil {
 		glog.Error(err)
@@ -56,7 +68,7 @@ func timelineDumpOne(db *leveldb.DB, id int64) {
 	}
 }
 
-func timelineDumpAll(db *leveldb.DB) {
+func timelineDumpAll(db *leveldb.DB, timelineKey TimelineKey) {
 	i := timelineKey.Scan(db)
 	defer i.Release()
 	for i.Next() {

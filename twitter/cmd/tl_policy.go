@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"html/template"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/ChimeraCoder/anaconda"
@@ -17,28 +16,62 @@ import (
 var policyTL = &cobra.Command{
 	Use:   "policy",
 	Short: "measures policy against timeline",
-	Run:   TimelinePolicy,
+	Run: func(cmd *cobra.Command, args []string) {
+		TimelinePolicy(cmd, args, TweetType{})
+	},
 }
 
 var dropsTL = &cobra.Command{
 	Use:   "drops",
 	Short: "lists tweets that policy wants to delete",
-	Run:   TimelinePolicyDrops,
+	Run: func(cmd *cobra.Command, args []string) {
+		TimelinePolicyDrops(cmd, args, TweetType{})
+	},
 }
 
 var keepsTL = &cobra.Command{
 	Use:   "keeps",
 	Short: "lists tweets that policy wants to keep",
-	Run:   TimelinePolicyKeeps,
+	Run: func(cmd *cobra.Command, args []string) {
+		TimelinePolicyKeeps(cmd, args, TweetType{})
+	},
+}
+
+var policyFav = &cobra.Command{
+	Use:   "policy",
+	Short: "measures policy against timeline",
+	Run: func(cmd *cobra.Command, args []string) {
+		TimelinePolicy(cmd, args, FavType{})
+	},
+}
+
+var dropsFav = &cobra.Command{
+	Use:   "drops",
+	Short: "lists favs that policy wants to delete",
+	Run: func(cmd *cobra.Command, args []string) {
+		TimelinePolicyDrops(cmd, args, FavType{})
+	},
+}
+
+var keepsFav = &cobra.Command{
+	Use:   "keeps",
+	Short: "lists favs that policy wants to keep",
+	Run: func(cmd *cobra.Command, args []string) {
+		TimelinePolicyKeeps(cmd, args, FavType{})
+	},
 }
 
 func init() {
 	tl.AddCommand(policyTL)
 	policyTL.AddCommand(dropsTL)
 	policyTL.AddCommand(keepsTL)
+
+	fv.AddCommand(policyFav)
+	policyFav.AddCommand(dropsFav)
+	policyFav.AddCommand(keepsFav)
 }
 
-func TimelinePolicyKeeps(cmd *cobra.Command, args []string) {
+func TimelinePolicyKeeps(cmd *cobra.Command, args []string, twitterType TwitterType) {
 	db, err := leveldb.OpenFile(viper.GetString("store"), nil)
 	if err != nil {
 		glog.Exit(err)
@@ -49,11 +82,11 @@ func TimelinePolicyKeeps(cmd *cobra.Command, args []string) {
 		glog.Exit(err)
 	}
 
-	result := policy.Apply(db)
+	result := policy.Apply(db, twitterType)
 	for reason, tweets := range result.Kept {
 		fmt.Println(reason)
 		for _, tweet := range tweets {
-			if _, err := deletesKey.Get(db, tweet.Id); err == nil {
+			if _, err := twitterType.DeletesKey().Get(db, tweet.Id); err == nil {
 				continue
 			}
 			tweetTmpl.Execute(os.Stdout, tweet)
@@ -62,7 +95,7 @@ func TimelinePolicyKeeps(cmd *cobra.Command, args []string) {
 	}
 }
 
-func TimelinePolicyDrops(cmd *cobra.Command, args []string) {
+func TimelinePolicyDrops(cmd *cobra.Command, args []string, twitterType TwitterType) {
 	db, err := leveldb.OpenFile(viper.GetString("store"), nil)
 	if err != nil {
 		glog.Exit(err)
@@ -73,9 +106,9 @@ func TimelinePolicyDrops(cmd *cobra.Command, args []string) {
 		glog.Exit(err)
 	}
 
-	result := policy.Apply(db)
+	result := policy.Apply(db, twitterType)
 	for _, tweet := range result.Dropped {
-		if _, err := deletesKey.Get(db, tweet.Id); err == nil {
+		if _, err := twitterType.DeletesKey().Get(db, tweet.Id); err == nil {
 			continue
 		}
 		tweetTmpl.Execute(os.Stdout, tweet)
@@ -83,7 +116,7 @@ func TimelinePolicyDrops(cmd *cobra.Command, args []string) {
 	}
 }
 
-func TimelinePolicy(cmd *cobra.Command, args []string) {
+func TimelinePolicy(cmd *cobra.Command, args []string, twitterType TwitterType) {
 	db, err := leveldb.OpenFile(viper.GetString("store"), nil)
 	if err != nil {
 		glog.Exit(err)
@@ -94,7 +127,7 @@ func TimelinePolicy(cmd *cobra.Command, args []string) {
 		glog.Exit(err)
 	}
 
-	result := policy.Apply(db)
+	result := policy.Apply(db, twitterType)
 	for r, n := range result.Kept {
 		fmt.Println("kept", len(n), "because", r)
 	}
@@ -115,41 +148,16 @@ func LoadPolicyFromConfig() (Policy, error) {
 	return p, err
 }
 
-func (p Policy) Keep(tweet anaconda.Tweet, now time.Time) (keep bool, reason string) {
-	if t, err := tweet.CreatedAtTime(); err != nil {
-		return true, "unparseable creation time"
-	} else {
-		if now.Sub(t) < p.MaxAge {
-			return true, "too recent"
-		}
-	}
-	if strings.HasPrefix(tweet.Text, "RT @") || tweet.Retweeted {
-		return false, "retweet"
-	}
-	if tweet.RetweetCount >= p.MinRetweets || tweet.FavoriteCount >= p.MinStars {
-		return true, "too popular"
-	}
-	if len(tweet.Entities.Media) > 0 && p.KeepMedia {
-		return true, "has media"
-	}
-	/*
-		if tweet.InReplyToStatusID != 0 {
-			return true, "replies"
-		}
-	*/
-	return false, "no rule match"
-}
-
 type Result struct {
 	Kept    map[string][]anaconda.Tweet
 	Dropped []anaconda.Tweet
 }
 
-func (p Policy) Apply(db *leveldb.DB) Result {
+func (p Policy) Apply(db *leveldb.DB, twitterType TwitterType) Result {
 	r := Result{
 		Kept: make(map[string][]anaconda.Tweet),
 	}
-	i := timelineKey.Scan(db)
+	i := twitterType.Key().Scan(db)
 	defer i.Release()
 	for i.Next() {
 		tweet, err := i.Value()
@@ -158,12 +166,12 @@ func (p Policy) Apply(db *leveldb.DB) Result {
 			r.Kept[errstr] = append(r.Kept[errstr], tweet)
 			continue
 		}
-		if _, err := deletesKey.Get(db, tweet.Id); err == nil {
+		if _, err := twitterType.DeletesKey().Get(db, tweet.Id); err == nil {
 			//r.Kept["already deleted"]++
 			// TODO(dichro): make a .Has method
 			continue
 		}
-		if keep, reason := p.Keep(tweet, time.Now()); keep {
+		if keep, reason := twitterType.Keep(p, tweet, time.Now()); keep {
 			r.Kept[reason] = append(r.Kept[reason], tweet)
 		} else {
 			r.Dropped = append(r.Dropped, tweet)
