@@ -6,7 +6,7 @@ The main binary is `twitter` in this directory. Before you can use it usefully, 
 
 2. Download all your Twitter data from https://twitter.com/settings/your_twitter_data - this is functionally optional if you have fewer than 3200 tweets in your timeline, but don't you want a backup anyway?
 
-3. Run `twitter timeline fetch` to retrieve the most recent 3200 tweets (API limit for scanning through a timeline).
+3. Run `twitter timeline fetch` to retrieve the most recent 3200 tweets (API limit for scanning through a timeline). 
 
 4. Run `twitter archive <filename>` with the filename of the archive you downloaded from Twitter to load older tweets beyond the limit of 3200.
 
@@ -14,4 +14,6 @@ The main binary is `twitter` in this directory. Before you can use it usefully, 
 
 6. Run `twitter timeline sanitize` to apply the policy and delete tweets.
 
-Still to come: sanitizing DMs, likes, and maybe even followers/lists, somehow.
+Favorites use a the same age policy and use a similar command structure `twitter favorites fetch`, `twitter favorites policy` etc.
+
+Still to come: sanitizing DMs, and maybe even followers/lists, somehow.
