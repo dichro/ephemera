@@ -12,7 +12,7 @@ var sanitizeTL = &cobra.Command{
 	Use:   "sanitize",
 	Short: "sanitizes timeline according to policy",
 	Run: func(cmd *cobra.Command, args []string) {
-		TimelineSanitize(cmd, args, TweetType{})
+		TimelineSanitize(cmd, args, Tweets)
 	},
 }
 
@@ -20,7 +20,7 @@ var sanitizeFavs = &cobra.Command{
 	Use:   "sanitize",
 	Short: "sanitizes favorites according to policy",
 	Run: func(cmd *cobra.Command, args []string) {
-		TimelineSanitize(cmd, args, FavType{})
+		TimelineSanitize(cmd, args, Likes)
 	},
 }
 

@@ -17,7 +17,7 @@ var policyTL = &cobra.Command{
 	Use:   "policy",
 	Short: "measures policy against timeline",
 	Run: func(cmd *cobra.Command, args []string) {
-		TimelinePolicy(cmd, args, TweetType{})
+		TimelinePolicy(cmd, args, Tweets)
 	},
 }
 
@@ -25,7 +25,7 @@ var dropsTL = &cobra.Command{
 	Use:   "drops",
 	Short: "lists tweets that policy wants to delete",
 	Run: func(cmd *cobra.Command, args []string) {
-		TimelinePolicyDrops(cmd, args, TweetType{})
+		TimelinePolicyDrops(cmd, args, Tweets)
 	},
 }
 
@@ -33,7 +33,7 @@ var keepsTL = &cobra.Command{
 	Use:   "keeps",
 	Short: "lists tweets that policy wants to keep",
 	Run: func(cmd *cobra.Command, args []string) {
-		TimelinePolicyKeeps(cmd, args, TweetType{})
+		TimelinePolicyKeeps(cmd, args, Tweets)
 	},
 }
 
@@ -41,7 +41,7 @@ var policyFav = &cobra.Command{
 	Use:   "policy",
 	Short: "measures policy against timeline",
 	Run: func(cmd *cobra.Command, args []string) {
-		TimelinePolicy(cmd, args, FavType{})
+		TimelinePolicy(cmd, args, Likes)
 	},
 }
 
@@ -49,7 +49,7 @@ var dropsFav = &cobra.Command{
 	Use:   "drops",
 	Short: "lists favs that policy wants to delete",
 	Run: func(cmd *cobra.Command, args []string) {
-		TimelinePolicyDrops(cmd, args, FavType{})
+		TimelinePolicyDrops(cmd, args, Likes)
 	},
 }
 
@@ -57,7 +57,7 @@ var keepsFav = &cobra.Command{
 	Use:   "keeps",
 	Short: "lists favs that policy wants to keep",
 	Run: func(cmd *cobra.Command, args []string) {
-		TimelinePolicyKeeps(cmd, args, FavType{})
+		TimelinePolicyKeeps(cmd, args, Likes)
 	},
 }
 

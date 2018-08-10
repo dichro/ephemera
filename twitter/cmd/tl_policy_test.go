@@ -36,7 +36,7 @@ func TestKeepTweets(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		got, reason := (TweetType{}).Keep(p, test.tweet, now)
+		got, reason := Tweets.Keep(p, test.tweet, now)
 		if got != test.want {
 			t.Errorf("Keep(...) was %v %v should be %v for %v",
 				got, reason, test.want, test.tweet)
@@ -75,7 +75,7 @@ func TestKeepFavs(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		got, reason := (FavType{}).Keep(p, test.tweet, now)
+		got, reason := Likes.Keep(p, test.tweet, now)
 		if got != test.want {
 			t.Errorf("Keep(...) was %v %v should be %v for %v",
 				got, reason, test.want, test.tweet)

@@ -15,7 +15,7 @@ var fetchTL = &cobra.Command{
 	Use:   "fetch",
 	Short: "retrieves timeline from twitter",
 	Run: func(cmd *cobra.Command, args []string) {
-		TimelineFetch(cmd, args, TweetType{})
+		TimelineFetch(cmd, args, Tweets)
 	},
 }
 
@@ -23,7 +23,7 @@ var fetchFavs = &cobra.Command{
 	Use:   "fetch",
 	Short: "retrieves favorites from twitter",
 	Run: func(cmd *cobra.Command, args []string) {
-		TimelineFetch(cmd, args, FavType{})
+		TimelineFetch(cmd, args, Likes)
 	},
 }
 

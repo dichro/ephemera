@@ -29,6 +29,11 @@ func init() {
 	root.AddCommand(fv)
 }
 
+var (
+	Tweets TweetType
+	Likes  FavType
+)
+
 type TwitterType interface {
 	Name() string
 	Key() TimelineKey

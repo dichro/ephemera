@@ -69,7 +69,7 @@ func ArchiveLoad(cmd *cobra.Command, args []string) {
 			if err != nil {
 				glog.Exit(err)
 			}
-			if _, err := (TweetType{}).Key().Get(db, id); err == nil {
+			if _, err := Tweets.Key().Get(db, id); err == nil {
 				continue // we already have this tweet
 			}
 			ids = append(ids, id)
@@ -95,7 +95,7 @@ func ArchiveLoad(cmd *cobra.Command, args []string) {
 		}
 		b := new(leveldb.Batch)
 		for _, t := range tweets {
-			if err := (TweetType{}).Key().Put(b, t); err != nil {
+			if err := Tweets.Key().Put(b, t); err != nil {
 				glog.Exit(err)
 			}
 		}

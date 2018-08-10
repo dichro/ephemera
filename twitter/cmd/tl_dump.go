@@ -16,7 +16,7 @@ var dumpTL = &cobra.Command{
 	Use:   "dump",
 	Short: "dumps timeline retrieved from twitter",
 	Run: func(cmd *cobra.Command, args []string) {
-		TimelineDump(cmd, args, TweetType{})
+		TimelineDump(cmd, args, Tweets)
 	},
 }
 
@@ -24,7 +24,7 @@ var dumpFavs = &cobra.Command{
 	Use:   "dump",
 	Short: "dumps favorites retrieved from twitter",
 	Run: func(cmd *cobra.Command, args []string) {
-		TimelineDump(cmd, args, FavType{})
+		TimelineDump(cmd, args, Likes)
 	},
 }
 
