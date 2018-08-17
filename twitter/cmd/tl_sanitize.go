@@ -2,8 +2,6 @@ package cmd
 
 import (
 	"fmt"
-
-	"github.com/dichro/ephemera/pinaf"
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -13,16 +11,25 @@ import (
 var sanitizeTL = &cobra.Command{
 	Use:   "sanitize",
 	Short: "sanitizes timeline according to policy",
-	Run:   TimelineSanitize,
+	Run: func(cmd *cobra.Command, args []string) {
+		TimelineSanitize(cmd, args, Tweets)
+	},
+}
+
+var sanitizeFavs = &cobra.Command{
+	Use:   "sanitize",
+	Short: "sanitizes favorites according to policy",
+	Run: func(cmd *cobra.Command, args []string) {
+		TimelineSanitize(cmd, args, Likes)
+	},
 }
 
 func init() {
 	tl.AddCommand(sanitizeTL)
+	fv.AddCommand(sanitizeFavs)
 }
 
-var deletesKey = TimelineKey{pinaf.JSONKey{pinaf.New("ephemera", "timeline", "drops")}}
-
-func TimelineSanitize(cmd *cobra.Command, args []string) {
+func TimelineSanitize(cmd *cobra.Command, args []string, twitterType TwitterType) {
 	db, err := leveldb.OpenFile(viper.GetString("store"), nil)
 	if err != nil {
 		glog.Exit(err)
@@ -32,7 +39,7 @@ func TimelineSanitize(cmd *cobra.Command, args []string) {
 	if err != nil {
 		glog.Exit(err)
 	}
-	result := policy.Apply(db)
+	result := policy.Apply(db, twitterType)
 	for r, n := range result.Kept {
 		fmt.Println("kept", len(n), "because", r)
 	}
@@ -41,18 +48,18 @@ func TimelineSanitize(cmd *cobra.Command, args []string) {
 
 	api := twitterAPI()
 	for _, tweet := range result.Dropped {
-		if _, err := deletesKey.Get(db, tweet.Id); err == nil {
+		if _, err := twitterType.DeletesKey().Get(db, tweet.Id); err == nil {
 			// TODO(dichro): make a .Has method
 			continue
 		}
 		b := new(leveldb.Batch)
 		fmt.Println("dropping", tweet.Id)
-		t, err := api.DeleteTweet(tweet.Id, true)
+		t, err := twitterType.DeleteCall(api, tweet.Id)
 		if err != nil {
 			glog.Error(err)
 			continue
 		}
-		deletesKey.Put(b, t)
+		twitterType.DeletesKey().Put(b, t)
 		if err := db.Write(b, nil); err != nil {
 			glog.Exit(err)
 		}

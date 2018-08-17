@@ -14,11 +14,22 @@ import (
 var fetchTL = &cobra.Command{
 	Use:   "fetch",
 	Short: "retrieves timeline from twitter",
-	Run:   TimelineFetch,
+	Run: func(cmd *cobra.Command, args []string) {
+		TimelineFetch(cmd, args, Tweets)
+	},
+}
+
+var fetchFavs = &cobra.Command{
+	Use:   "fetch",
+	Short: "retrieves favorites from twitter",
+	Run: func(cmd *cobra.Command, args []string) {
+		TimelineFetch(cmd, args, Likes)
+	},
 }
 
 func init() {
 	tl.AddCommand(fetchTL)
+	fv.AddCommand(fetchFavs)
 }
 
 func twitterAPI() *anaconda.TwitterApi {
@@ -34,21 +45,7 @@ func twitterAPI() *anaconda.TwitterApi {
 	return anaconda.NewTwitterApi(viper.GetString(accessToken), viper.GetString(accessSecret))
 }
 
-func idRange(db *leveldb.DB) (low, high int64, err error) {
-	i := timelineKey.Scan(db)
-	defer i.Release()
-	if !i.First() {
-		return
-	}
-	if low, err = i.Key(); err == nil {
-		i.Last()
-		high, err = i.Key()
-	}
-	glog.Infof("idRange yielded %d, %d error %v", low, high, err)
-	return
-}
-
-func TimelineFetch(cmd *cobra.Command, args []string) {
+func TimelineFetch(cmd *cobra.Command, args []string, key TwitterType) {
 	db, err := leveldb.OpenFile(viper.GetString("store"), nil)
 	if err != nil {
 		glog.Exit(err)
@@ -57,7 +54,11 @@ func TimelineFetch(cmd *cobra.Command, args []string) {
 
 	api := twitterAPI()
 
-	low, high, err := idRange(db)
+	fetchAll(api, db, key)
+}
+
+func fetchAll(api *anaconda.TwitterApi, db *leveldb.DB, timelineKey TwitterType) {
+	low, high, err := timelineKey.Key().IdRange(db)
 	retrieved := 0
 	for high != 0 {
 		if err != nil {
@@ -67,7 +68,7 @@ func TimelineFetch(cmd *cobra.Command, args []string) {
 		v.Set("since_id", fmt.Sprint(high))
 		v.Set("count", "200")
 		b := new(leveldb.Batch)
-		n, err := fetch(api, b, v)
+		n, err := fetchTimeline(api, b, v, timelineKey)
 		glog.Infof("fetching ids above %d: %d error %v", high, n, err)
 		if err != nil {
 			glog.Exit(err)
@@ -79,10 +80,10 @@ func TimelineFetch(cmd *cobra.Command, args []string) {
 			glog.Exit(err)
 		}
 		retrieved += n
-		low, high, err = idRange(db)
+		low, high, err = timelineKey.Key().IdRange(db)
 	}
 	if retrieved > 0 {
-		fmt.Println("retrieved", retrieved, "recent tweets")
+		fmt.Println("retrieved", retrieved, "recent", timelineKey.Name())
 		retrieved = 0
 	}
 
@@ -96,7 +97,7 @@ func TimelineFetch(cmd *cobra.Command, args []string) {
 		}
 		v.Set("count", "200")
 		b := new(leveldb.Batch)
-		n, err := fetch(api, b, v)
+		n, err := fetchTimeline(api, b, v, timelineKey)
 		glog.Infof("fetching ids below %d: %d error %v", low, n, err)
 		if err != nil {
 			glog.Exit(err)
@@ -108,20 +109,20 @@ func TimelineFetch(cmd *cobra.Command, args []string) {
 			glog.Exit(err)
 		}
 		retrieved += n
-		low, high, err = idRange(db)
+		low, high, err = timelineKey.Key().IdRange(db)
 	}
 	if retrieved > 0 {
-		fmt.Println("retrieved", retrieved, "older tweets")
+		fmt.Println("retrieved", retrieved, "older", timelineKey.Name())
 	}
 }
 
-func fetch(api *anaconda.TwitterApi, b *leveldb.Batch, v url.Values) (int, error) {
-	tl, err := api.GetUserTimeline(v)
+func fetchTimeline(api *anaconda.TwitterApi, b *leveldb.Batch, v url.Values, k TwitterType) (int, error) {
+	tl, err := k.ApiCall(api, v)
 	if err != nil {
 		return 0, err
 	}
 	for i, status := range tl {
-		if err := timelineKey.Put(b, status); err != nil {
+		if err := k.Key().Put(b, status); err != nil {
 			return i, err
 		}
 	}
